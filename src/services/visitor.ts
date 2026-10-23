@@ -2,7 +2,7 @@ import { siteConfig } from '../config/site'
 
 // 访客身份与设备识别。
 // - 身份：localStorage 里的 UUID（清缓存才换人），对应后端 visit_logs.visitor_key
-// - 设备：直接在浏览器端解析 navigator.userAgent，拼成 "iPhone · iOS 17 · Safari"
+// - 设备：直接在浏览器端解析 navigator.userAgent，拼成 "iPhone / iOS 17 / Safari"
 //   这样的短串，通过 X-Visitor-Device 头传给后端——Go 端不用引 UA 解析库
 // - 传输：installVisitorHeaders() 包装 window.fetch，对 API 请求自动附加
 //   X-Visitor-ID / X-Visitor-Device / X-Visitor-Name 三个头，调用处零改动
@@ -79,7 +79,9 @@ export function describeDevice(): string {
   if (browser) parts.push(browser)
 
   if (!parts.length) return ua.slice(0, 64)
-  return parts.join(' · ').slice(0, 64)
+  // 分隔符必须是纯 ASCII：HTTP 头是字节流，浏览器会把 "·"(U+00B7) 按 latin1
+  // 发成单字节 0xB7，后端拿到的是非法 UTF-8，写 MySQL utf8mb4 列会报 1366。
+  return parts.join(' / ').slice(0, 64)
 }
 
 // installVisitorHeaders 包装 window.fetch：凡是指向后端 API 的请求
@@ -109,7 +111,9 @@ export function installVisitorHeaders(): void {
     headers.set('X-Visitor-ID', getVisitorId())
     headers.set('X-Visitor-Device', describeDevice())
     const name = getVisitorName()
-    if (name) headers.set('X-Visitor-Name', name)
+    // 中文昵称不能直接塞头：头的字符集只到 latin1，超出的码点会让 Headers.set 抛 TypeError，
+    // 那一下整个 fetch 包装都会失败（等于全站接口都挂）。编码成 %XX，后端 decodeHeader 还原。
+    if (name) headers.set('X-Visitor-Name', encodeURIComponent(name))
 
     // init 里只覆盖 headers：字符串入参时其余字段走 init（本来就有）；
     // Request 入参时 method/body 等字段按 spec 从 Request 继承

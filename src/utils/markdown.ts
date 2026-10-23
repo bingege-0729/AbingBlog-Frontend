@@ -69,7 +69,10 @@ export function renderMarkdown(src: string): string {
       }
       i += 1 // 跳过结束围栏
       const body = code.join('\n')
-      out.push(lang === 'mermaid' ? `<div class="mermaid">${body}</div>` : `<pre><code>${escapeHtml(body)}</code></pre>`)
+      // mermaid 源码同样要转义：正文是 v-html 注入的，直接拼会留下 XSS 口子，
+      // 而且 <<interface>> 这类写法会被浏览器当成未知标签吃掉。转义后
+      // textContent 仍是原文，mermaid 读到的就是标准语法。
+      out.push(lang === 'mermaid' ? `<div class="mermaid">${escapeHtml(body)}</div>` : `<pre><code>${escapeHtml(body)}</code></pre>`)
       continue
     }
 
@@ -155,27 +158,161 @@ export function renderMarkdown(src: string): string {
   return out.join('\n')
 }
 
-// Mermaid：按需从 CDN 加载并渲染页面中的 .mermaid 节点，避免首屏引入大体积依赖。
-const MERMAID_URL = 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs'
-let mermaidLoader: Promise<any> | null = null
+// —— Mermaid ——
+// 走本地依赖而不是 CDN：jsdelivr 在国内经常几秒起步、偶发被墙，图没画出来后
+// 用户只能看见一段源码，还查不出原因。改成 npm 依赖后由 Vite 切成独立 chunk，
+// 只有正文真的出现图表才按需加载，首屏体积不受影响。
+type MermaidApi = {
+  initialize: (config: Record<string, unknown>) => void
+  render: (id: string, text: string) => Promise<unknown>
+}
 
-function loadMermaid(): Promise<any> {
+let mermaidLoader: Promise<MermaidApi> | null = null
+let appliedTheme = ''
+let renderSeq = 0
+// 同一批节点可能被连续触发两次（展开正文 + 切换主题），用串行队列避免重复渲染打架
+let renderQueue: Promise<void> = Promise.resolve()
+
+function loadMermaid(): Promise<MermaidApi> {
   if (!mermaidLoader) {
-    mermaidLoader = import(/* @vite-ignore */ MERMAID_URL).then((mod) => {
-      const mermaid = mod.default
-      mermaid.initialize({ startOnLoad: false })
-      return mermaid
-    })
+    mermaidLoader = import('mermaid').then((mod) => (mod as unknown as { default: MermaidApi }).default)
   }
   return mermaidLoader
 }
 
-export async function renderMermaid(): Promise<void> {
-  if (!document.querySelector('.mermaid')) return
-  try {
-    const mermaid = await loadMermaid()
-    await mermaid.run({ nodes: Array.from(document.querySelectorAll('.mermaid')) })
-  } catch {
-    // 加载失败时保留原始文本，不影响正文阅读。
+function cssVar(name: string, fallback: string): string {
+  if (typeof window === 'undefined') return fallback
+  const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim()
+  return value || fallback
+}
+
+function currentTheme(): string {
+  return document.documentElement.dataset.theme === 'ink' ? 'ink' : 'sand'
+}
+
+// 配色全部取自主题令牌：同一张图在暖纸/石墨两套皮肤下都不突兀，
+// 切换主题时强制重绘（initialize 只影响之后的渲染，已画好的 svg 颜色不会自己变）。
+function mermaidConfig(): Record<string, unknown> {
+  const ink = currentTheme() === 'ink'
+  const text = cssVar('--text', ink ? '#e6e9e3' : '#1b1916')
+  const text2 = cssVar('--text-2', ink ? '#b9c1c9' : '#5c554a')
+  const line = cssVar('--line-2', ink ? '#303945' : '#d0c6b1')
+  const surface = cssVar('--surface-2', ink ? '#1a1f26' : '#f3eee3')
+  const surface3 = cssVar('--surface-3', ink ? '#212832' : '#e8e1d2')
+  const canvas = cssVar('--surface', ink ? '#14181d' : '#fdfbf6')
+  const accent = cssVar('--accent', ink ? '#5fbfae' : '#ac3b26')
+
+  return {
+    startOnLoad: false,
+    securityLevel: 'strict',
+    fontFamily: '"Space Grotesk", "Noto Sans SC", system-ui, sans-serif',
+    theme: 'base',
+    themeVariables: {
+      background: canvas,
+      mainBkg: surface,
+      primaryColor: surface,
+      primaryBorderColor: line,
+      primaryTextColor: text,
+      secondaryColor: surface3,
+      secondaryBorderColor: line,
+      secondaryTextColor: text,
+      tertiaryColor: surface3,
+      tertiaryBorderColor: line,
+      tertiaryTextColor: text,
+      lineColor: text2,
+      textColor: text,
+      nodeBorder: line,
+      clusterBkg: surface3,
+      clusterBorder: line,
+      edgeLabelBackground: canvas,
+      titleColor: text,
+      // 时序图
+      actorBkg: surface,
+      actorBorder: line,
+      actorTextColor: text,
+      actorLineColor: line,
+      signalColor: text2,
+      signalTextColor: text2,
+      labelBoxBkgColor: surface,
+      labelBoxBorderColor: line,
+      labelTextColor: text,
+      loopTextColor: text,
+      noteBkgColor: cssVar('--accent-wash', ink ? '#1b2a2c' : '#f7e7df'),
+      noteBorderColor: cssVar('--accent-soft', ink ? '#2f4a48' : '#d9a291'),
+      noteTextColor: text,
+      // 状态图 / 类图
+      labelColor: text,
+      altBackground: surface3,
+      classText: text,
+      // 饼图
+      pie1: accent,
+      pie2: surface3,
+      pie3: line,
+      pieTitleTextColor: text,
+      pieSectionTextColor: text,
+      pieLegendTextColor: text2,
+    },
   }
+}
+
+function markFailed(el: HTMLElement, source: string): void {
+  el.dataset.rendered = 'failed'
+  el.classList.add('mermaid-fallback')
+  el.innerHTML =
+    `<p class="mermaid-note">图表未能渲染，以下为原始定义</p>` +
+    `<pre><code>${escapeHtml(source)}</code></pre>`
+}
+
+async function runMermaid(scope: ParentNode | undefined): Promise<void> {
+  const root = scope ?? document
+  const theme = currentTheme()
+  const themeChanged = appliedTheme !== theme
+  const nodes = Array.from(root.querySelectorAll<HTMLElement>('.mermaid')).filter(
+    (el) => themeChanged || !el.dataset.rendered,
+  )
+  if (!nodes.length) return
+
+  // 先把源码落到 data-src：首次取 textContent，之后 svg 已经盖掉文本节点，
+  // 切主题重绘只能靠这份备份还原。
+  const jobs = nodes.map((el) => {
+    const source = el.dataset.src ?? el.textContent ?? ''
+    el.dataset.src = source
+    return { el, source }
+  })
+
+  let mermaid: MermaidApi
+  try {
+    mermaid = await loadMermaid()
+  } catch {
+    jobs.forEach((job) => markFailed(job.el, job.source))
+    return
+  }
+
+  if (themeChanged) {
+    mermaid.initialize(mermaidConfig())
+    appliedTheme = theme
+  }
+
+  for (const { el, source } of jobs) {
+    if (!source.trim()) continue
+    try {
+      const result = await mermaid.render(`mermaid-${(renderSeq += 1)}`, source)
+      const svg = typeof result === 'string' ? result : (result as { svg?: string } | null)?.svg
+      if (!svg) throw new Error('empty svg')
+      el.innerHTML = svg
+      el.dataset.rendered = '1'
+      el.classList.remove('mermaid-fallback')
+    } catch {
+      markFailed(el, source)
+    }
+  }
+}
+
+/** 渲染 scope 内（默认整个文档）尚未处理的 .mermaid 节点。必须等节点真的进了 DOM 再调用。 */
+export function renderMermaid(scope?: ParentNode): Promise<void> {
+  renderQueue = renderQueue.then(
+    () => runMermaid(scope),
+    () => runMermaid(scope),
+  )
+  return renderQueue
 }

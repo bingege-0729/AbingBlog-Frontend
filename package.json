@@ -10,10 +10,14 @@
   },
   "dependencies": {
     "@vitejs/plugin-vue": "^5.2.3",
+    "mermaid": "^11.17.2",
+    "three": "^0.186.1",
     "typescript": "^5.7.3",
     "vite": "^6.1.0",
     "vue": "^3.5.13",
     "vue-tsc": "^2.2.0"
   },
-  "devDependencies": {}
+  "devDependencies": {
+    "@types/three": "^0.186.0"
+  }
 }

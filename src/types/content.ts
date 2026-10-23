@@ -52,3 +52,19 @@ export interface FriendLinkInput {
   sort: number
   status: FriendStatus
 }
+
+// —— 个人档案（右侧档案区；公开只读，后台可维护）——
+export interface Profile {
+  headline: string
+  location: string
+  summary: string
+  stacks: string[]
+  awards: string[]
+  doing: string
+  interests: string[]
+  // 经历时间线：每条 "时间段 | 标题 | 说明"，前端按 "|" 拆成三段渲染
+  experiences: string[]
+  // 站点配色：管理端设定访客默认看到哪套主题（'sand' | 'ink'）。
+  // 后端未上线该字段时按 undefined 处理，前端回落到 sand。
+  theme?: string
+}
