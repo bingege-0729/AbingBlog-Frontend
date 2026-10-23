@@ -16,6 +16,8 @@ import type {
   VisitLog,
   VisitSummaryData,
 } from '../types/admin'
+import type { Profile } from '../types/content'
+import type { ResumeMeta } from './resume'
 
 // 后端统一响应信封；成功 code===0，失败 data 为 null（DELETE 成功时 data 也是 null）。
 interface ApiEnvelope<T> {
@@ -73,6 +75,26 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 
 function jsonBody(body: unknown): RequestInit {
   return { method: 'POST', body: JSON.stringify(body) }
+}
+
+// 上传文件不能走 request()：那里会给 body 补 Content-Type: application/json，
+// 而 multipart 的 boundary 必须由浏览器自己生成，手写会直接把请求搞坏。
+async function requestForm<T>(path: string, form: FormData): Promise<T> {
+  const token = getToken()
+  const headers = new Headers()
+  if (token) headers.set('Authorization', `Bearer ${token}`)
+
+  const response = await fetch(`${siteConfig.apiBaseUrl}${path}`, { method: 'POST', body: form, headers })
+  let payload: ApiEnvelope<T>
+  try {
+    payload = await response.json() as ApiEnvelope<T>
+  } catch {
+    throw new AdminApiError(`API request failed: ${response.status}`, response.status, -1)
+  }
+  if (!response.ok || payload.code !== 0) {
+    throw new AdminApiError(payload.message || `API request failed: ${response.status}`, response.status, payload.code)
+  }
+  return payload.data as T
 }
 
 export const adminApi = {
@@ -162,5 +184,23 @@ export const adminApi = {
   },
   deleteFriendLink(id: number): Promise<void> {
     return request(`/admin/friend-links/${id}`, { method: 'DELETE' })
+  },
+
+  // 个人档案（奖项 / 技术栈 / 简介等，读写同一份数据）
+  getProfile(): Promise<Profile> {
+    return request('/admin/profile')
+  },
+  updateProfile(input: Profile): Promise<Profile> {
+    return request('/admin/profile', { method: 'PUT', body: JSON.stringify(input) })
+  },
+
+  // 简历文件：上传即覆盖旧文件（后端只保留一份，下载链接固定）
+  uploadResume(file: File): Promise<ResumeMeta> {
+    const form = new FormData()
+    form.append('file', file)
+    return requestForm('/admin/resume', form)
+  },
+  deleteResume(): Promise<void> {
+    return request('/admin/resume', { method: 'DELETE' })
   },
 }
