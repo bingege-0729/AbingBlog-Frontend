@@ -1,0 +1,118 @@
+/* ============================================================
+   主题令牌 / design tokens
+   ------------------------------------------------------------
+   全站唯一的配色来源。任何地方要用颜色，一律写 var(--xxx)，
+   不要再写裸十六进制值，否则换主题时会漏。
+
+   两套主题：
+     sand  暖纸 · 朱砂（默认）—— 浅色，HR 阅读与打印友好
+     ink   石墨 · 青        —— 深色，展陈、3D 与夜间阅读
+
+   切换方式：<html data-theme="sand|ink">，见 src/utils/theme.ts
+   ============================================================ */
+
+:root,
+[data-theme="sand"] {
+  color-scheme: light;
+
+  /* 页面与表面：数字越大越"深"，用来分层次 */
+  --bg: #f4f0e7;
+  --bg-deep: #ebe5d8;
+  --surface: #fdfbf6;
+  --surface-2: #f3eee3;
+  --surface-3: #e8e1d2;
+
+  /* 分割线 */
+  --line: #ddd4c2;
+  --line-2: #d0c6b1;
+  --line-strong: #bfb39c;
+
+  /* 文字：text = 正文，muted 逐级变淡 */
+  --text: #1b1916;
+  --text-2: #5c554a;
+  --muted: #776f62;
+  --muted-2: #8a8274;
+  --muted-3: #a79e8d;
+
+  /* 强调：accent 用于文字与描边，accent-wash 是它的淡底色，
+     accent-ink 是压在 accent 实底上的文字色 */
+  --accent: #ac3b26;
+  --accent-strong: #c9482f;
+  --accent-soft: #d9a291;
+  --accent-deep: #7e2a19;
+  --accent-wash: #f7e7df;
+  --accent-ink: #fff9f5;
+
+  /* 状态色 */
+  --danger: #ac3b26;
+  --danger-wash: #f8e6e1;
+  --warn: #94661a;
+  --warn-wash: #f7ecd8;
+  --ok: #4a6b3d;
+  --ok-wash: #eaf0e2;
+
+  --shadow: 0 18px 44px -28px rgba(58, 46, 30, .45);
+  --shadow-lift: 0 26px 60px -30px rgba(58, 46, 30, .5);
+
+  /* 装饰性半透明色：卡片内嵌亮线、强调色的 alpha 版。
+     rgba 写法没法给 var 加透明度，所以成对定义。 */
+  --ring: rgba(255, 252, 244, .55);
+  --accent-tint: rgba(201, 72, 47, .12);
+  --accent-tint-strong: rgba(201, 72, 47, .5);
+
+  /* 首屏点阵背景的点色 */
+  --grid-dot: rgba(27, 25, 22, .16);
+}
+
+[data-theme="ink"] {
+  color-scheme: dark;
+
+  --bg: #0c0f12;
+  --bg-deep: #08090b;
+  --surface: #14181d;
+  --surface-2: #1a1f26;
+  --surface-3: #212832;
+
+  --line: #262d36;
+  --line-2: #303945;
+  --line-strong: #3d4753;
+
+  --text: #e8eef3;
+  --text-2: #b6c0ca;
+  --muted: #8b97a4;
+  --muted-2: #76818d;
+  --muted-3: #5e6672;
+
+  --accent: #4cd9c0;
+  --accent-strong: #7de8d4;
+  --accent-soft: #2f7d6e;
+  --accent-deep: #1d4f47;
+  --accent-wash: #12251f;
+  --accent-ink: #041814;
+
+  --danger: #e2685a;
+  --danger-wash: #2a1714;
+  --warn: #e0b25c;
+  --warn-wash: #2a2113;
+  --ok: #7cc47f;
+  --ok-wash: #14231a;
+
+  --shadow: 0 18px 44px -28px rgba(0, 0, 0, .8);
+  --shadow-lift: 0 26px 60px -30px rgba(0, 0, 0, .9);
+
+  --ring: rgba(232, 238, 243, .07);
+  --accent-tint: rgba(76, 217, 192, .12);
+  --accent-tint-strong: rgba(76, 217, 192, .45);
+
+  --grid-dot: rgba(232, 238, 243, .18);
+}
+
+/* 切主题时只过渡颜色，不碰布局；尊重系统的减少动效设置 */
+@media (prefers-reduced-motion: no-preference) {
+  html.theme-animating,
+  html.theme-animating *,
+  html.theme-animating *::before,
+  html.theme-animating *::after {
+    transition: background-color .22s ease, border-color .22s ease, color .22s ease !important;
+  }
+}

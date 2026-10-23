@@ -1,0 +1,136 @@
+/* ============================================================
+   3D 层 / depth
+   ------------------------------------------------------------
+   规则（不要破坏，否则性能会掉）：
+   1. 只用 transform 与 opacity，绝不碰 width/height/top/left；
+   2. 指针变量 --px / --py 由 App.vue 里唯一一处 mousemove 写入，
+      取值范围 -1 ~ 1，这里只做 calc 消费，不给元素单独绑事件；
+   3. 触屏设备（hover: none）与「减少动效」环境下整层退化为平面；
+   4. 站点设置里关掉「动画」时 .no-motion 会一并压平。
+
+   三种手法各用在一处，不要扩散：
+     a. Hero 名字  —— 描边残影 + 轻微视差旋转（表达层）
+     b. 点阵背景   —— 随指针反向位移，撑出深度（表达层）
+     c. 列表 / 卡片 —— hover 时抬升（索引层）
+   ============================================================ */
+
+:root {
+  --px: 0;
+  --py: 0;
+}
+
+/* ---------- a. Hero 名字：残影 + 视差 ---------- */
+.hero-block {
+  position: relative;
+  isolation: isolate;
+}
+
+.hero-block h2 {
+  position: relative;
+  transform: perspective(760px)
+             rotateY(calc(var(--px) * 5deg))
+             rotateX(calc(var(--py) * -3deg));
+  transform-style: preserve-3d;
+  transition: transform .45s cubic-bezier(.22, .61, .36, 1);
+}
+
+/* 描边残影：错开 7px，做出"厚度"，比投影克制 */
+.hero-block h2::after {
+  position: absolute;
+  inset: 0;
+  content: attr(data-name);
+  color: transparent;
+  -webkit-text-stroke: 1px var(--line-strong);
+  transform: translate(7px, 7px);
+  opacity: .5;
+  pointer-events: none;
+}
+
+/* ---------- b. 点阵背景：反向位移 ---------- */
+.hero-block::after {
+  position: absolute;
+  z-index: -1;
+  inset: -16px -8px -4px;
+  content: "";
+  background-image: radial-gradient(var(--grid-dot) 1px, transparent 1.1px);
+  background-size: 24px 24px;
+  opacity: .75;
+  transform: translate(calc(var(--px) * -7px), calc(var(--py) * -7px));
+  transition: transform .45s cubic-bezier(.22, .61, .36, 1);
+  pointer-events: none;
+  /* 往下淡出，避免点子干扰正文阅读 */
+  -webkit-mask-image: linear-gradient(180deg, #000 0%, #000 58%, transparent 92%);
+  mask-image: linear-gradient(180deg, #000 0%, #000 58%, transparent 92%);
+}
+
+/* ---------- c. 列表与卡片：hover 抬升 ---------- */
+@media (hover: hover) and (prefers-reduced-motion: no-preference) {
+  .home-block .mini-list li {
+    perspective: 700px;
+  }
+
+  .home-block .mini-list button {
+    transition: transform .24s cubic-bezier(.22, .61, .36, 1), background-color .24s ease;
+  }
+
+  .home-block .mini-list button:hover {
+    transform: translate3d(3px, -1px, 12px) rotateX(-4deg);
+  }
+
+  .project-row,
+  .post-row,
+  .list-row {
+    transition: transform .24s cubic-bezier(.22, .61, .36, 1), background-color .24s ease;
+  }
+
+  .project-row:hover,
+  .post-row:hover,
+  .list-row:hover {
+    transform: perspective(900px) translateZ(6px) rotateX(-1.5deg);
+  }
+
+  /* 首屏"最新"大卡：整块随指针微转，与 Hero 呼应 */
+  .large-note {
+    transform: perspective(1100px)
+               rotateY(calc(var(--px) * 2.5deg))
+               rotateX(calc(var(--py) * -1.6deg));
+    transition: transform .5s cubic-bezier(.22, .61, .36, 1);
+  }
+
+  .large-note:hover {
+    transform: perspective(1100px)
+               rotateY(calc(var(--px) * 2.5deg))
+               rotateX(calc(var(--py) * -1.6deg))
+               translate(-3px, -3px);
+  }
+}
+
+/* ---------- 退化：触屏 / 减少动效 / 关闭动画 ---------- */
+@media (hover: none), (prefers-reduced-motion: reduce) {
+  .hero-block h2,
+  .hero-block::after,
+  .large-note,
+  .large-note:hover,
+  .home-block .mini-list button:hover,
+  .project-row:hover,
+  .post-row:hover,
+  .list-row:hover {
+    transform: none !important;
+  }
+}
+
+.no-motion .hero-block h2,
+.no-motion .hero-block::after,
+.no-motion .large-note,
+.no-motion .large-note:hover,
+.no-motion .home-block .mini-list button:hover,
+.no-motion .project-row:hover,
+.no-motion .post-row:hover,
+.no-motion .list-row:hover {
+  transform: none !important;
+}
+
+/* 简历文档页不需要任何立体效果：它是纸 */
+.terminal-workspace.resume-mode .hero-block::after {
+  display: none;
+}
