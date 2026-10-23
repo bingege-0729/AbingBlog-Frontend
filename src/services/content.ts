@@ -82,7 +82,7 @@ export function createApiContentService(): ContentService {
   return {
     async listPosts() {
       const data = await get<ArticleListData>('/articles?page=1&page_size=10')
-      return data.list.map((article) => ({
+      return (data.list ?? []).map((article) => ({
         slug: String(article.id),
         date: article.published_at?.slice(0, 10).replaceAll('-', '.') ?? '',
         title: article.title,
@@ -103,7 +103,7 @@ export function createApiContentService(): ContentService {
     },
     async listProjects() {
       const data = await get<ProjectListData>('/projects?page=1&page_size=10')
-      return data.list.map((project) => ({
+      return (data.list ?? []).map((project) => ({
         slug: project.slug,
         name: project.name,
         detail: project.detail,

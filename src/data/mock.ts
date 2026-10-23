@@ -1,10 +1,12 @@
 import type { PostSummary, ProjectSummary } from '../types/content'
 
+// 开发/联调用的假数据。刻意不给 url：给了外链，点击「最新」会跳到 example.com 这种
+// 假地址，看起来就像线上放着占位内容；留空则走站内正文（mockPostContents）。
 export const mockPosts: PostSummary[] = [
-  { slug: 'readable-blog-system', date: '2026.09.06', title: '把个人博客做成一个可阅读的系统', tag: 'DESIGN', summary: '关于克制的交互、内容优先，以及为什么入口不该抢走文章的注意力。', url: 'https://example.com/posts/readable-blog-system' },
-  { slug: 'async-systems-from-queues', date: '2026.08.21', title: '从消息队列开始理解异步系统', tag: 'ENGINEERING', summary: '用生产者和消费者的视角，拆解消息队列为什么是异步系统的起点。', url: 'https://example.com/posts/async-systems-from-queues' },
-  { slug: 'vue-component-boundaries', date: '2026.08.03', title: '我的 Vue 组件边界准则', tag: 'FRONTEND', summary: '组件该在什么时候拆、什么时候合，几条能落地的判断标准。', url: 'https://example.com/posts/vue-component-boundaries' },
-  { slug: 'docker-compose-foundation', date: '2026.07.16', title: 'Docker Compose: 本地开发的基础设施', tag: 'DEVOPS', summary: '把本地依赖收进一个文件，让开发环境第一次就能被复现。', url: 'https://example.com/posts/docker-compose-foundation' },
+  { slug: 'readable-blog-system', date: '2026.09.06', title: '把个人博客做成一个可阅读的系统', tag: 'DESIGN', summary: '关于克制的交互、内容优先，以及为什么入口不该抢走文章的注意力。' },
+  { slug: 'async-systems-from-queues', date: '2026.08.21', title: '从消息队列开始理解异步系统', tag: 'ENGINEERING', summary: '用生产者和消费者的视角，拆解消息队列为什么是异步系统的起点。' },
+  { slug: 'vue-component-boundaries', date: '2026.08.03', title: '我的 Vue 组件边界准则', tag: 'FRONTEND', summary: '组件该在什么时候拆、什么时候合，几条能落地的判断标准。' },
+  { slug: 'docker-compose-foundation', date: '2026.07.16', title: 'Docker Compose: 本地开发的基础设施', tag: 'DEVOPS', summary: '把本地依赖收进一个文件，让开发环境第一次就能被复现。' },
 ]
 
 // mock 模式下的文章正文，与摘要刻意不同，用来验证「未展开显示摘要、展开显示正文」。
