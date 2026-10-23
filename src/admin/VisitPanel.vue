@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { adminApi, AdminApiError, isAuthError } from '../services/admin'
 import type { Paginated, VisitLog, VisitSummaryData, VisitorSummary } from '../types/admin'
 
@@ -20,31 +20,45 @@ const searchInput = ref('')
 const loading = ref(true)
 const error = ref('')
 
-async function loadSummary() {
-  summaryError.value = ''
+async function loadSummary(silent = false) {
+  if (!silent) summaryError.value = ''
   try {
     summary.value = await adminApi.visitSummary()
+    summaryError.value = ''
   } catch (e) {
     if (isAuthError(e)) return emit('authExpired')
-    summaryError.value = e instanceof AdminApiError ? e.message : '统计加载失败'
+    if (!silent) summaryError.value = e instanceof AdminApiError ? e.message : '统计加载失败'
   } finally {
     summaryLoading.value = false
   }
 }
 
-async function loadLogs() {
-  error.value = ''
-  loading.value = true
+async function loadLogs(silent = false) {
+  if (!silent) {
+    error.value = ''
+    loading.value = true
+  }
   try {
     const data: Paginated<VisitLog> = await adminApi.listVisits(page.value, pageSize, keyword.value)
     logs.value = data.list ?? []
     total.value = data.total ?? 0
+    error.value = ''
   } catch (e) {
     if (isAuthError(e)) return emit('authExpired')
-    error.value = e instanceof AdminApiError ? e.message : '明细加载失败'
+    if (!silent) error.value = e instanceof AdminApiError ? e.message : '明细加载失败'
   } finally {
     loading.value = false
   }
+}
+
+// 静默刷新：不重置 loading，避免轮询时整块变成"加载中"造成空白闪烁
+function refresh() {
+  loadSummary(true)
+  loadLogs(true)
+}
+
+function onVisible() {
+  if (document.visibilityState === 'visible') refresh()
 }
 
 function search() {
@@ -84,15 +98,27 @@ function formatIp(ip: string): string {
 
 const totalPages = computed(() => Math.max(1, Math.ceil(total.value / pageSize)))
 
+// 访客数据每 30s 静默刷新一次；切回标签页时立即刷新。
+const REFRESH_INTERVAL = 30000
+let refreshTimer: number | null = null
+
 onMounted(() => {
   loadSummary()
   loadLogs()
+  refreshTimer = window.setInterval(refresh, REFRESH_INTERVAL)
+  document.addEventListener('visibilitychange', onVisible)
+})
+
+onBeforeUnmount(() => {
+  if (refreshTimer !== null) window.clearInterval(refreshTimer)
+  document.removeEventListener('visibilitychange', onVisible)
 })
 </script>
 
 <template>
   <section class="admin-panel visit-panel">
     <div class="view-title"><p class="eyebrow">后台 / 访客</p><h2>访客</h2><span v-if="summary">累计 {{ summary.stats.total }} 次访问</span></div>
+    <div class="visit-toolbar"><button class="visit-refresh" type="button" @click="refresh">刷新数据</button><span>每 30 秒自动刷新</span></div>
 
     <!-- 统计卡片：终端读数风，数字用等宽字体 -->
     <p v-if="summaryError" class="admin-error" role="alert">{{ summaryError }}</p>
