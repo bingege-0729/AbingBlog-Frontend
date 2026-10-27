@@ -93,6 +93,8 @@ export interface VisitLog {
   visitor_key: string
   nickname: string
   path: string
+  // api = 接口调用（中间件自动记）；page = 前台页面浏览（路由切换主动上报）
+  kind: string
   ip: string
   device: string
   user_agent: string

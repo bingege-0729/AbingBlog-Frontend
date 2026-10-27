@@ -199,7 +199,7 @@ onBeforeUnmount(() => {
           <td class="visit-nick">{{ visitorLabel(log) }}</td>
           <td class="visit-device" :title="log.user_agent">{{ deviceText(log) }}</td>
           <td class="visit-ip">{{ formatIp(log.ip) }}</td>
-          <td class="visit-path">{{ log.path }}</td>
+          <td class="visit-path">{{ log.kind === 'page' ? `页面 · ${log.path}` : log.path }}</td>
         </tr>
       </tbody>
     </table>

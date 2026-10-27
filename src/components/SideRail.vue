@@ -9,6 +9,7 @@
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import SiteBeian from './SiteBeian.vue'
 import RailCube from './RailCube.vue'
+import VisitCounter from './VisitCounter.vue'
 
 const props = withDefaults(defineProps<{ current?: string; name?: string; motion?: boolean }>(), {
   current: 'home',
@@ -97,6 +98,9 @@ watch(
       </button>
       <button class="rail-top" type="button" @click="toTop">↑ TOP</button>
     </nav>
+
+    <!-- 访问计数盒：紧跟页内目录下方；非首页没有目录，就落在右栏顶部 -->
+    <VisitCounter />
 
     <div class="rail-foot">
       <span class="rail-copy">© 2026 {{ name }}</span>

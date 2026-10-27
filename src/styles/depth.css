@@ -134,3 +134,13 @@
 .terminal-workspace.resume-mode .hero-block::after {
   display: none;
 }
+
+/* ---------- 阅读态：文章展开后整行静止 ----------
+   展开正文后，鼠标大部分时间悬停在这一行内，
+   行级 hover 的 3D 抬升/倾斜会带着正文一起晃，干扰阅读。
+   只压平 expanded 的行，列表态动效保持不变。 */
+.post-row.expanded,
+.post-row.expanded:hover {
+  transform: none !important;
+  transition: none !important;
+}

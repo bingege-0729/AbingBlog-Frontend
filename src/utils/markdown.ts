@@ -316,3 +316,8 @@ export function renderMermaid(scope?: ParentNode): Promise<void> {
   )
   return renderQueue
 }
+
+// 列表已经展示了标题，正文若以同名 H1 开头就剥离，避免标题重复出现。
+export function renderPostContent(content: string): string {
+  return renderMarkdown(content.replace(/^\s*#\s+.*(?:\n+|$)/, ''))
+}

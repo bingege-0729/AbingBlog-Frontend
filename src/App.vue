@@ -7,12 +7,14 @@ import { clearSession } from './services/admin'
 import AdminView from './admin/AdminView.vue'
 import ArcadeScene from './components/ArcadeScene.vue'
 import SideRail from './components/SideRail.vue'
-import type { PostDetail, PostSummary, ProjectSummary, FriendLink, Profile } from './types/content'
-import { renderMarkdown, renderMermaid } from './utils/markdown'
+import PostView from './PostView.vue'
+import type { PostSummary, ProjectSummary, FriendLink, Profile } from './types/content'
+import { renderMermaid } from './utils/markdown'
 import { friendlyError } from './utils/error'
 import { fetchProfile, defaultProfile } from './services/profile'
 import { THEMES, applyTheme, persistTheme, resolveTheme, type ThemeName } from './utils/theme'
 import { fetchResumeMeta, resumeFileUrl, type ResumeMeta } from './services/resume'
+import { reportPageView } from './services/visits'
 import { shots as galleryShots, type Shot as GalleryShot } from './data/gallery'
 import { moments as lifeMoments } from './data/moments'
 
@@ -216,39 +218,35 @@ function openProject(project: ProjectSummary) {
   if (url) window.open(url, '_blank', 'noopener,noreferrer')
 }
 
-// 文章列表：点击左侧展开正文（按需拉取详情，缓存避免重复请求），点击箭头跳转到原文外链。
-const expandedPost = ref<string | null>(null)
-const postDetails = ref<Record<string, PostDetail>>({})
-const postLoading = ref<Record<string, boolean>>({})
-const postDetailError = ref('')
+// 文章列表：点开跳到独立阅读页（PostView），点箭头跳原文外链。
+const openPostSlug = ref<string | null>(null)
 
-async function togglePost(slug: string, syncUrl = true) {
-  if (expandedPost.value === slug) {
-    expandedPost.value = null
-    if (syncUrl) syncPath('/posts')
+// 列表/卡片点进来：有外链直达，否则进阅读页。URL 保持 /posts/:slug。
+function openPostItem(post: PostSummary) {
+  if (post.url) {
+    window.open(post.url, '_blank', 'noopener,noreferrer')
     return
   }
-  expandedPost.value = slug
-  if (syncUrl) syncPath(`/posts/${slug}`)
-  if (postDetails.value[slug]) {
-    await nextTick()
-    renderMermaid()
-    return
-  }
-  postLoading.value[slug] = true
-  postDetailError.value = ''
-  try {
-    postDetails.value[slug] = await contentService.getPost(slug)
-  } catch (error) {
-    postDetailError.value = friendlyError(error, '正文加载失败')
-  } finally {
-    postLoading.value[slug] = false
-  }
-  // 正文那几个分支是 v-if/v-else-if 串起来的，postLoading 还是 true 时
-  // 页面上只有「加载正文…」，.mermaid 根本没进 DOM。所以 nextTick 必须放在
-  // finally 之后，否则渲染函数查不到节点、直接空转，看起来就像没生效。
-  await nextTick()
-  renderMermaid()
+  current.value = 'posts'
+  openPostSlug.value = post.slug
+  syncPath(`/posts/${post.slug}`)
+  trackPageView(`/posts/${post.slug}`)
+  window.scrollTo(0, 0)
+}
+
+// 阅读页「返回列表」
+function closePost() {
+  openPostSlug.value = null
+  syncPath('/posts')
+  trackPageView('/posts')
+}
+
+// 阅读页「上一篇 / 下一篇」：只换 slug，PostView 自己 watch 重拉
+function openSlug(slug: string) {
+  openPostSlug.value = slug
+  syncPath(`/posts/${slug}`)
+  trackPageView(`/posts/${slug}`)
+  window.scrollTo(0, 0)
 }
 
 // 首页的「最新」和「精选」都基于这份按日期倒序的列表：
@@ -274,18 +272,6 @@ function openPost(post: PostSummary) {
   if (post.url) window.open(post.url, '_blank', 'noopener,noreferrer')
 }
 
-// 打开任意一篇文章：有原文链接则直达，没有则进文章页并展开正文。
-async function openPostItem(post: PostSummary) {
-  if (post.url) {
-    window.open(post.url, '_blank', 'noopener,noreferrer')
-    return
-  }
-  navigate('posts')
-  syncPath(`/posts/${post.slug}`)
-  await nextTick()
-  if (expandedPost.value !== post.slug) await togglePost(post.slug)
-}
-
 // 首页「最新」卡片
 function openLatestPost() {
   const post = latestPost.value
@@ -306,11 +292,6 @@ function openProjectItem(project: ProjectSummary) {
 function toggleOrOpenProject(project: ProjectSummary) {
   if (projectUrl(project)) openProject(project)
   else toggleProject(project.slug)
-}
-
-// 列表已经展示了标题，正文若以同名 H1 开头就剥离，避免标题重复出现。
-function renderPostContent(content: string): string {
-  return renderMarkdown(content.replace(/^\s*#\s+.*(?:\n+|$)/, ''))
 }
 
 
@@ -484,8 +465,10 @@ function syncPath(path: string) {
 function handlePopState() {
   const { section, postSlug } = readLocation()
   current.value = section
-  expandedPost.value = null
-  if (postSlug) togglePost(postSlug, false)
+  // 进文章页则展开阅读页，回到 /posts 或别的栏目则清掉，列表自然显示
+  openPostSlug.value = section === 'posts' ? postSlug : null
+  // 浏览器前进/后退 = 一次新的页面浏览（地址已经是目标地址了，直接读 pathname）
+  trackPageView()
   if (section === 'links' && !linksLoaded.value) {
     linksLoaded.value = true
     loadMyLinks()
@@ -546,14 +529,29 @@ function backToSite() {
   loadResumeMeta()
 }
 
+// 页面浏览上报：访问日志只在 API 请求上落一条，纯前端切页（命中缓存不发请求）会漏记。
+// 这里在每次"路由"真正变化时补一次，同一路径不重复记；后台管理页不算前台访问。
+let lastTrackedPath = ''
+function trackPageView(path?: string) {
+  if (isAdminMode.value) return
+  const target = path ?? (window.location.pathname || '/')
+  if (target === lastTrackedPath) return
+  lastTrackedPath = target
+  void reportPageView(target)
+}
+
 function navigate(section: Section) {
   current.value = section
+  // 切栏目时退出文章阅读页，保证点「文章」一定回到列表（openPostItem 不走 navigate，不会误清）
+  openPostSlug.value = null
   if (section === 'posts' || section === 'projects' || section === 'links') refreshContent()
   if (section === 'links' && !linksLoaded.value) {
     linksLoaded.value = true
     loadMyLinks()
   }
   if (section !== 'settings') syncPath(pathFor(section))
+  // settings 不改地址，但仍算一次页面浏览，所以统一用 pathFor 而不是读 pathname
+  trackPageView(pathFor(section))
 }
 
 
@@ -562,6 +560,8 @@ onMounted(async () => {
   const { section, postSlug } = readLocation()
   current.value = section
   pendingPostSlug = postSlug
+  // 首屏也算一次页面浏览（深链 /posts/3 直接进文章，同样要记）
+  trackPageView()
   if (section === 'links' && !linksLoaded.value) {
     linksLoaded.value = true
     loadMyLinks()
@@ -606,7 +606,8 @@ onMounted(async () => {
   if (pendingPostSlug) {
     const slug = pendingPostSlug
     pendingPostSlug = null
-    await togglePost(slug, false)
+    current.value = 'posts'
+    openPostSlug.value = slug
   }
 })
 
@@ -752,7 +753,23 @@ onBeforeUnmount(() => {
             </section>
 
 
-            <section v-else-if="current === 'posts'" class="list-view"><div class="view-title"><p class="eyebrow">目录 / 文章</p><h2>文章</h2><span>共 {{ posts.length }} 篇</span></div><p v-if="postsError" class="login-error" role="alert">{{ postsError }}</p><p v-else-if="!posts.length" class="eyebrow">暂无文章</p><article v-for="post in posts" :key="post.slug" class="post-row" :class="{ expanded: expandedPost === post.slug }"><div class="post-main" role="button" tabindex="0" :aria-expanded="expandedPost === post.slug" @click="togglePost(post.slug)" @keydown.enter.prevent="togglePost(post.slug)" @keydown.space.prevent="togglePost(post.slug)"><h3>{{ post.title }}</h3><p v-if="post.summary && expandedPost !== post.slug" class="post-summary">{{ post.summary }}</p></div><time class="post-date">{{ post.date }}</time><span class="post-tag">{{ post.tag }}</span><button class="post-link" type="button" :title="post.url ? '打开原文链接' : '暂无外链'" :aria-label="post.url ? '打开原文链接' : '暂无外链'" :disabled="!post.url" @click="openPost(post)">↗</button><div v-if="expandedPost === post.slug" class="post-detail"><p v-if="postLoading[post.slug]" class="post-detail-loading">加载正文…</p><p v-else-if="postDetailError" class="login-error" role="alert">{{ postDetailError }}</p><div v-else-if="postDetails[post.slug]" class="post-content" v-html="renderPostContent(postDetails[post.slug]?.content ?? '')"></div></div></article></section>
+            <section v-else-if="current === 'posts'" class="list-view">
+              <PostView v-if="openPostSlug" :slug="openPostSlug" :posts="posts" @close="closePost" @open="openSlug" />
+              <template v-else>
+                <div class="view-title"><p class="eyebrow">目录 / 文章</p><h2>文章</h2><span>共 {{ posts.length }} 篇</span></div>
+                <p v-if="postsError" class="login-error" role="alert">{{ postsError }}</p>
+                <p v-else-if="!posts.length" class="eyebrow">暂无文章</p>
+                <article v-for="post in posts" :key="post.slug" class="post-row">
+                  <div class="post-main" role="button" tabindex="0" @click="openPostItem(post)" @keydown.enter.prevent="openPostItem(post)" @keydown.space.prevent="openPostItem(post)">
+                    <h3>{{ post.title }}</h3>
+                    <p v-if="post.summary" class="post-summary">{{ post.summary }}</p>
+                  </div>
+                  <time class="post-date">{{ post.date }}</time>
+                  <span class="post-tag">{{ post.tag }}</span>
+                  <button class="post-link" type="button" :title="post.url ? '打开原文链接' : '暂无外链'" :aria-label="post.url ? '打开原文链接' : '暂无外链'" :disabled="!post.url" @click="openPost(post)">↗</button>
+                </article>
+              </template>
+            </section>
 
             <section v-else-if="current === 'projects'" class="list-view"><div class="view-title"><p class="eyebrow">目录 / 项目</p><h2>项目</h2><span>共 {{ projects.length }} 个</span></div><p v-if="projectsError" class="login-error" role="alert">{{ projectsError }}</p><article v-for="project in projects" :key="project.slug" class="project-row" :class="{ expanded: expandedProject === project.slug }"><div class="project-main" role="button" tabindex="0" :aria-expanded="expandedProject === project.slug" @click="toggleOrOpenProject(project)" @keydown.enter.prevent="toggleOrOpenProject(project)" @keydown.space.prevent="toggleOrOpenProject(project)"><h3>{{ project.name }}</h3><p>{{ project.detail }}</p></div><span>{{ project.stack }}</span><button class="project-link" type="button" :title="projectUrl(project) ? '打开项目链接' : '暂无链接'" aria-label="打开项目链接" :disabled="!projectUrl(project)" @click="openProject(project)">↗</button><div v-if="expandedProject === project.slug" class="project-detail"><div class="project-detail-links"><a v-if="project.githubUrl" :href="project.githubUrl" target="_blank" rel="noopener noreferrer">GitHub ↗</a><a v-if="project.demoUrl" :href="project.demoUrl" target="_blank" rel="noopener noreferrer">演示 ↗</a><span v-if="!project.githubUrl && !project.demoUrl" class="project-detail-empty">暂无链接</span></div></div></article></section>
 
