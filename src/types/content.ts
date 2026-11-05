@@ -16,6 +16,17 @@ export interface PostDetail {
   url: string
 }
 
+// 掘金公开阅读数据（后端代理抓取，避开浏览器 CORS）。
+// 仅阅读量（views）稳定可读；点赞/评论/收藏被掘金压缩成变量，免登录拿不到，恒为 0。
+export interface JuejinStats {
+  ok: boolean
+  views: number
+  likes: number
+  comments: number
+  collects: number
+  fetched_at: string
+}
+
 export interface ProjectSummary {
   slug: string
   name: string

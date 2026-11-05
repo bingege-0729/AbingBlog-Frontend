@@ -3,9 +3,10 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { contentService } from './services/content'
 import { renderMermaid, renderPostContent } from './utils/markdown'
 import { friendlyError } from './utils/error'
-import type { PostDetail, PostSummary } from './types/content'
+import JuejinStatsBadge from './components/JuejinStats.vue'
+import type { PostDetail, PostSummary, JuejinStats } from './types/content'
 
-const props = defineProps<{ slug: string; posts: PostSummary[] }>()
+const props = defineProps<{ slug: string; posts: PostSummary[]; juejinStats?: Record<string, JuejinStats> }>()
 const emit = defineEmits<{ close: []; open: [slug: string] }>()
 
 const post = ref<PostDetail | null>(null)
@@ -18,6 +19,9 @@ const activeId = ref('')
 
 // 列表里匹配到的同 slug 摘要，给阅读页头部补日期/标签（详情接口本身不含这两项）
 const summary = computed(() => props.posts.find((p) => p.slug === props.slug))
+
+// 当前文章的掘金公开阅读数据（按 url 从 App 传下来的 map 里取）
+const juejin = computed(() => (post.value?.url ? props.juejinStats?.[post.value.url] : undefined))
 
 // 预计阅读时长：中文按 ~350 字/分钟，去掉代码块粗略估算
 const readingTime = computed(() => {
@@ -132,6 +136,8 @@ onBeforeUnmount(() => {
           <span v-if="summary?.tag" class="dot">·</span>
           <span>约 {{ readingTime }} 分钟阅读</span>
         </div>
+        <JuejinStatsBadge :stats="juejin" />
+        <a v-if="post.url" class="post-origin" :href="post.url" target="_blank" rel="noopener noreferrer">在掘金查看原文 ↗</a>
         <img v-if="post.cover" class="post-cover" :src="post.cover" :alt="post.title" />
       </template>
     </div>

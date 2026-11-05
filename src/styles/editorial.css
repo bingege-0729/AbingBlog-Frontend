@@ -788,6 +788,45 @@
 }
 .post-meta .dot { color: var(--line-strong); }
 
+/* 掘金公开阅读数据小标记：卡片 / 阅读页里复用同一个组件。
+   阅读量稳定可读；点赞/评论/收藏拿不到（恒为 0），由组件内部 v-if 隐藏。 */
+.juejin-stats {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-top: 10px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--muted-2);
+}
+
+.juejin-stats .js-mark { width: 13px; height: 13px; flex: none; }
+
+.juejin-stats .js-num { color: var(--muted); font-variant-numeric: tabular-nums; }
+
+.juejin-stats .js-label { color: var(--muted-2); }
+
+.juejin-stats .js-sep { color: var(--line-strong); }
+
+/* 阅读页里「去掘金看原文」出口（仅外链文章显示） */
+.post-origin {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 12px;
+  padding: 7px 14px;
+  border: 1px solid var(--line);
+  border-radius: 100px;
+  background: none;
+  color: var(--text);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  text-decoration: none;
+  transition: border-color .16s ease, color .16s ease;
+}
+
+.post-origin:hover { border-color: var(--accent); color: var(--accent); }
+
 .post-cover {
   display: block;
   width: 100%;

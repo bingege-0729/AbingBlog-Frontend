@@ -8,7 +8,8 @@ import AdminView from './admin/AdminView.vue'
 import ArcadeScene from './components/ArcadeScene.vue'
 import SideRail from './components/SideRail.vue'
 import PostView from './PostView.vue'
-import type { PostSummary, ProjectSummary, FriendLink, Profile } from './types/content'
+import JuejinStatsBadge from './components/JuejinStats.vue'
+import type { PostSummary, ProjectSummary, FriendLink, Profile, JuejinStats } from './types/content'
 import { renderMermaid } from './utils/markdown'
 import { friendlyError } from './utils/error'
 import { fetchProfile, defaultProfile } from './services/profile'
@@ -48,6 +49,10 @@ const contentError = ref('')
 const postsError = ref('')
 const projectsError = ref('')
 const profile = ref<Profile>({ ...defaultProfile })
+
+// 掘金文章公开阅读数据：url -> { ok, views, ... }，卡片 / 阅读页展示用。
+// 文章列表加载后一次性批量拉取，缓存到这个 map 里供卡片和阅读页按 url 查。
+const juejinStats = ref<Record<string, JuejinStats>>({})
 
 // 当前配色。真实值由 resolveTheme() 决定（URL > localStorage > 管理端默认），
 // 这里只是给设置面板做高亮用。
@@ -94,7 +99,18 @@ async function loadContent() {
     friendLinkService.listApproved(),
   ])
   const [postResult, projectResult, linkResult] = results
-  if (postResult.status === 'fulfilled') posts.value = postResult.value
+  if (postResult.status === 'fulfilled') {
+    posts.value = postResult.value
+    // 收集掘金外链，批量拉一次公开阅读量（卡片 / 阅读页展示用，后端代理避开 CORS）
+    const juejinUrls = postResult.value
+      .map((p) => p.url)
+      .filter((u): u is string => !!u && u.includes('juejin.cn'))
+    if (juejinUrls.length) {
+      contentService.batchJuejinStats(juejinUrls)
+        .then((map) => { juejinStats.value = { ...juejinStats.value, ...map } })
+        .catch(() => {})
+    }
+  }
   if (projectResult.status === 'fulfilled') projects.value = projectResult.value
   if (linkResult.status === 'fulfilled') friendLinks.value = linkResult.value
   postsError.value = postResult.status === 'fulfilled' ? '' : friendlyError(postResult.reason, '文章加载失败')
@@ -221,12 +237,10 @@ function openProject(project: ProjectSummary) {
 // 文章列表：点开跳到独立阅读页（PostView），点箭头跳原文外链。
 const openPostSlug = ref<string | null>(null)
 
-// 列表/卡片点进来：有外链直达，否则进阅读页。URL 保持 /posts/:slug。
+// 列表/卡片点进来：一律进站内阅读页（阅读页内提供「去掘金看原文」出口）。
+// 之前有外链会直接跳走，那样站内阅读页永远看不到掘金数据；现在统一进阅读页，
+// ↗ 按钮才是直达外链的出口（见下方 openPost）。
 function openPostItem(post: PostSummary) {
-  if (post.url) {
-    window.open(post.url, '_blank', 'noopener,noreferrer')
-    return
-  }
   current.value = 'posts'
   openPostSlug.value = post.slug
   syncPath(`/posts/${post.slug}`)
@@ -725,6 +739,7 @@ onBeforeUnmount(() => {
                     <span>
                       <h3>{{ post.title }}</h3>
                       <p v-if="post.summary">{{ post.summary }}</p>
+                      <JuejinStatsBadge :stats="juejinStats[post.url ?? '']" />
                     </span>
                     <span class="arrow" aria-hidden="true">↗</span>
                   </button>
@@ -754,7 +769,7 @@ onBeforeUnmount(() => {
 
 
             <section v-else-if="current === 'posts'" class="list-view">
-              <PostView v-if="openPostSlug" :slug="openPostSlug" :posts="posts" @close="closePost" @open="openSlug" />
+              <PostView v-if="openPostSlug" :slug="openPostSlug" :posts="posts" :juejinStats="juejinStats" @close="closePost" @open="openSlug" />
               <template v-else>
                 <div class="view-title"><p class="eyebrow">目录 / 文章</p><h2>文章</h2><span>共 {{ posts.length }} 篇</span></div>
                 <p v-if="postsError" class="login-error" role="alert">{{ postsError }}</p>
@@ -763,6 +778,7 @@ onBeforeUnmount(() => {
                   <div class="post-main" role="button" tabindex="0" @click="openPostItem(post)" @keydown.enter.prevent="openPostItem(post)" @keydown.space.prevent="openPostItem(post)">
                     <h3>{{ post.title }}</h3>
                     <p v-if="post.summary" class="post-summary">{{ post.summary }}</p>
+                    <JuejinStatsBadge :stats="juejinStats[post.url ?? '']" />
                   </div>
                   <time class="post-date">{{ post.date }}</time>
                   <span class="post-tag">{{ post.tag }}</span>

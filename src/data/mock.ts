@@ -1,10 +1,12 @@
 import type { PostSummary, ProjectSummary } from '../types/content'
 
-// 开发/联调用的假数据。刻意不给 url：给了外链，点击「最新」会跳到 example.com 这种
+// 开发/联调用的假数据。多数文章刻意不给 url：给了外链，点击「最新」会跳到 example.com 这种
 // 假地址，看起来就像线上放着占位内容；留空则走站内正文（mockPostContents）。
+// 前两篇给了真实存在的掘金链接，仅用于本地演示「掘金公开阅读量」徽标（mock 模式会返回假数据）。
+// 接入真实后端后，这些 url 会被你自己的文章外链覆盖，无需改动。
 export const mockPosts: PostSummary[] = [
-  { slug: 'readable-blog-system', date: '2026.09.06', title: '把个人博客做成一个可阅读的系统', tag: 'DESIGN', summary: '关于克制的交互、内容优先，以及为什么入口不该抢走文章的注意力。' },
-  { slug: 'async-systems-from-queues', date: '2026.08.21', title: '从消息队列开始理解异步系统', tag: 'ENGINEERING', summary: '用生产者和消费者的视角，拆解消息队列为什么是异步系统的起点。' },
+  { slug: 'readable-blog-system', date: '2026.09.06', title: '把个人博客做成一个可阅读的系统', tag: 'DESIGN', summary: '关于克制的交互、内容优先，以及为什么入口不该抢走文章的注意力。', url: 'https://juejin.cn/post/7569477465952780298' },
+  { slug: 'async-systems-from-queues', date: '2026.08.21', title: '从消息队列开始理解异步系统', tag: 'ENGINEERING', summary: '用生产者和消费者的视角，拆解消息队列为什么是异步系统的起点。', url: 'https://juejin.cn/post/6844903878082736647' },
   { slug: 'vue-component-boundaries', date: '2026.08.03', title: '我的 Vue 组件边界准则', tag: 'FRONTEND', summary: '组件该在什么时候拆、什么时候合，几条能落地的判断标准。' },
   { slug: 'docker-compose-foundation', date: '2026.07.16', title: 'Docker Compose: 本地开发的基础设施', tag: 'DEVOPS', summary: '把本地依赖收进一个文件，让开发环境第一次就能被复现。' },
 ]
