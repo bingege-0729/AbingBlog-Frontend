@@ -203,4 +203,12 @@ export const adminApi = {
   deleteResume(): Promise<void> {
     return request('/admin/resume', { method: 'DELETE' })
   },
+
+  // 账号：修改密码（操作对象取自 JWT，前端只传旧/新密码）
+  changePassword(oldPassword: string, newPassword: string): Promise<{ ok: true }> {
+    return request('/admin/password', {
+      method: 'PUT',
+      body: JSON.stringify({ old_password: oldPassword, new_password: newPassword }),
+    })
+  },
 }

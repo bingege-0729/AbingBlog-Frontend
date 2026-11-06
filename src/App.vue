@@ -29,6 +29,7 @@ const fontSize = ref(15)
 const adminLoginOpen = ref(false)
 const adminUsername = ref('')
 const adminPassword = ref('')
+const showPassword = ref(false)
 const loginError = ref('')
 const loggingIn = ref(false)
 
@@ -511,6 +512,8 @@ async function loginAdmin() {
     if (!response.ok || !payload || payload.code !== 0 || !payload.data?.token) throw new Error(payload?.message || `登录失败 (${response.status})`)
     localStorage.setItem('abing_access_token', payload.data.token)
     adminLoginOpen.value = false
+    adminPassword.value = ''
+    showPassword.value = false
     isAdminMode.value = true
   } catch (error) {
     loginError.value = friendlyError(error, '登录失败，请稍后重试')
@@ -635,17 +638,26 @@ onBeforeUnmount(() => {
 <template>
   <AdminView v-if="isAdminMode" @logout="logoutAdmin" @back="backToSite" />
   <main v-else class="site-shell" :class="{ 'no-motion': !motion }" :style="{ '--terminal-size': `${fontSize}px` }">
-    <div v-if="adminLoginOpen" class="admin-login" role="dialog" aria-modal="true" aria-labelledby="admin-login-title">
-      <button class="admin-login-close" type="button" aria-label="Close administrator login" @click="adminLoginOpen = false">×</button>
-      <p class="eyebrow">SERVICE ACCESS / NODE 01</p>
-      <h2 id="admin-login-title">ADMIN LOGIN</h2>
-      <form @submit.prevent="loginAdmin">
-        <label>USERNAME<input v-model="adminUsername" name="username" autocomplete="username" required /></label>
-        <label>PASSWORD<input v-model="adminPassword" name="password" type="password" autocomplete="current-password" required /></label>
-        <p v-if="loginError" class="login-error" role="alert">{{ loginError }}</p>
-        <button class="admin-submit" type="submit" :disabled="loggingIn">{{ loggingIn ? 'AUTHENTICATING...' : 'CONNECT' }}</button>
-      </form>
-    </div>
+    <template v-if="adminLoginOpen">
+      <div class="admin-login-backdrop" @click="adminLoginOpen = false"></div>
+      <div class="admin-login" role="dialog" aria-modal="true" aria-labelledby="admin-login-title">
+        <button class="admin-login-close" type="button" aria-label="关闭后台登录" @click="adminLoginOpen = false">×</button>
+        <div class="admin-brand"><i></i>ABING 控制台</div>
+        <p class="eyebrow">SERVICE ACCESS</p>
+        <h2 id="admin-login-title">ADMIN LOGIN</h2>
+        <form @submit.prevent="loginAdmin">
+          <label>USERNAME<input v-model="adminUsername" name="username" autocomplete="username" required /></label>
+          <label>PASSWORD
+            <span class="pw-wrap">
+              <input v-model="adminPassword" name="password" :type="showPassword ? 'text' : 'password'" autocomplete="current-password" required />
+              <button class="pw-toggle" type="button" :aria-label="showPassword ? '隐藏密码' : '显示密码'" @click="showPassword = !showPassword">{{ showPassword ? '隐藏' : '显示' }}</button>
+            </span>
+          </label>
+          <p v-if="loginError" class="login-error" role="alert">{{ loginError }}</p>
+          <button class="admin-submit" type="submit" :disabled="loggingIn">{{ loggingIn ? 'AUTHENTICATING...' : 'CONNECT' }}</button>
+        </form>
+      </div>
+    </template>
 
     <section class="site-frame">
       <header class="site-header">

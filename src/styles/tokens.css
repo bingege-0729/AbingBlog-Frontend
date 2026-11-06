@@ -107,6 +107,37 @@
   --grid-dot: rgba(232, 238, 243, .18);
 }
 
+/* ============================================================
+   后台管理专用令牌 —— 固定工具面板主题，不随站点 sand/ink 切换。
+   后台是独立的"管理工具"表面，用干净浅色面板（类 Notion / WP 后台），
+   与管理端的可读性、克制风格一致。所有后台颜色都走这组，不写裸 hex。
+   ============================================================ */
+.admin-shell,
+.admin-login {
+  --admin-bg: #f4f5f0;
+  --admin-surface: #ffffff;
+  --admin-surface-2: #f7f8f4;
+  --admin-line: #dcdfd6;
+  --admin-line-2: #d2d6cb;
+  --admin-line-strong: #c9cec3;
+  --admin-text: #1c201c;
+  --admin-text-2: #39402f;
+  --admin-muted: #78806f;
+  --admin-muted-2: #8a9184;
+  --admin-accent: #5f7020;        /* 苔绿：后台主强调 */
+  --admin-accent-strong: #788a2e;
+  --admin-accent-soft: #a8b56b;
+  --admin-accent-wash: #eef2dc;
+  --admin-danger: #a05a4c;
+  --admin-danger-wash: #fdf3f0;
+  --admin-danger-line: #e0c8c2;
+  --admin-ok: #4f6118;
+  --admin-shadow: 8px 9px 0 rgba(28, 32, 28, .06);
+  --admin-shadow-deep: 0 26px 60px -30px rgba(28, 32, 28, .5);
+  --admin-focus-ring: rgba(143, 163, 36, .14);
+  --admin-grid-dot: rgba(28, 32, 28, .14);
+}
+
 /* 切主题时只过渡颜色，不碰布局；尊重系统的减少动效设置 */
 @media (prefers-reduced-motion: no-preference) {
   html.theme-animating,
